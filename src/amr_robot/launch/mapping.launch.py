@@ -72,7 +72,7 @@ def generate_launch_description():
         ),
 
         # ── 3. SLAM Toolbox (delayed 3s) ─────────────────────
-        TimerAction(period=5.0, actions=[
+        TimerAction(period=4.0, actions=[
             Node(
                 package='slam_toolbox',
                 executable='async_slam_toolbox_node',
@@ -89,7 +89,7 @@ def generate_launch_description():
         # ── 4. Teleop Keyboard (delayed 4s) ──────────────────
         # Drives the robot so the map gets built.
         # Keep the terminal focused to send key commands.
-        TimerAction(period=4.0, actions=[
+        TimerAction(period=5.0, actions=[
             Node(
                 package='teleop_twist_keyboard',
                 executable='teleop_twist_keyboard',

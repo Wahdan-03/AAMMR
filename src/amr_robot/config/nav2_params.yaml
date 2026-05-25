@@ -21,7 +21,7 @@ amcl:
     global_frame_id: map
     lambda_short: 0.1
     laser_likelihood_max_dist: 2.0
-    laser_max_range: 8.0           # LD19 max range
+    laser_max_range: 5.0           # LD19 max range
     laser_min_range: 0.1
     laser_model_type: likelihood_field
     max_beams: 60
@@ -94,7 +94,7 @@ controller_server:
       lookahead_time: 1.5
       rotate_to_heading_angular_vel: 0.8
       transform_tolerance: 0.1
-      use_velocity_scaled_lookahead_dist: false
+      use_velocity_scaled_lookahead_dist: true
       min_approach_linear_velocity: 0.05
       approach_velocity_scaling_dist: 0.6
       use_collision_detection: true

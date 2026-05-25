@@ -41,7 +41,7 @@ def generate_launch_description():
             parameters=[{
                 'serial_port': '/dev/arduino_mega',
                 'baud_rate': 115200,
-                'wheel_base': 0.175,
+                'wheel_base': 0.165,
                 'publish_rate': 20.0,
             }]
         ),
@@ -81,7 +81,7 @@ def generate_launch_description():
         Node(
             package='nav2_lifecycle_manager',
             executable='lifecycle_manager',
-            name='lifecycle_manager_navigation',
+            name='lifecycle_manager',
             output='screen',
             parameters=[{
                 'use_sim_time': False,
