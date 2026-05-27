@@ -3,7 +3,7 @@ slam_toolbox:
     mode: mapping
 
     # Frames & Topics
-    odom_frame: ""          # Empty → ignore odometry (use LiDAR only)
+    odom_frame: odom          # Empty → ignore odometry (use LiDAR only)
     map_frame: map
     base_frame: base_link
     scan_topic: /scan_throttled   # use throttled topic
@@ -22,9 +22,9 @@ slam_toolbox:
     use_scan_barycenter: false
     
     # Timing (avoid queue overflow)
-    transform_timeout: 1.0
-    minimum_time_interval_ms: 50
-    transform_publish_period_ms: 100
+    transform_timeout: 2.0
+    minimum_time_interval_ms: 500
+    transform_publish_period_ms: 50
 
     # Solver
     solver_plugin: solver_plugins::CeresSolver

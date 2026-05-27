@@ -44,7 +44,7 @@ def generate_launch_description():
         ),
 
         # 4. SLAM Toolbox (uses throttled scan)
-        TimerAction(period=4.0, actions=[
+        TimerAction(period=7.0, actions=[
             Node(
                 package='slam_toolbox',
                 executable='async_slam_toolbox_node',
