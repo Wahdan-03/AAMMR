@@ -8,11 +8,12 @@
 amcl:
   ros__parameters:
     use_sim_time: false
-    alpha1: 0.2           # rotation noise from rotation
-    alpha2: 0.2           # rotation noise from translation
-    alpha3: 0.2           # translation noise from translation
-    alpha4: 0.2           # translation noise from rotation
-    alpha5: 0.2
+    odom_model_type: "diff"
+    alpha1: 2.0           # rotation noise from rotation
+    alpha2: 2.0           # rotation noise from translation
+    alpha3: 2.0           # translation noise from translation
+    alpha4: 2.0           # translation noise from rotation
+    alpha5: 2.0
     base_frame_id: base_link
     beam_skip_distance: 0.5
     beam_skip_error_threshold: 0.9
@@ -23,7 +24,7 @@ amcl:
     laser_likelihood_max_dist: 2.0
     laser_max_range: 5.0           # LD19 max range
     laser_min_range: 0.1
-    laser_model_type: likelihood_field
+    laser_model_type: l"ikelihood_field"
     max_beams: 60
     max_particles: 2000
     min_particles: 500
@@ -40,12 +41,12 @@ amcl:
     sigma_hit: 0.2
     tf_broadcast: true
     transform_tolerance: 1.0
-    update_min_a: 0.2              # rotate this much before updating
-    update_min_d: 0.25             # move this much before updating
-    z_hit: 0.5
-    z_max: 0.05
-    z_rand: 0.5
-    z_short: 0.05
+    update_min_a: 0.5              # rotate this much before updating
+    update_min_d: 0.5             # move this much before updating
+    z_hit: 0.95
+    z_max: 0.02
+    z_rand: 0.01
+    z_short: 0.02
 
 bt_navigator:
   ros__parameters:

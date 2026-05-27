@@ -68,6 +68,7 @@ def generate_launch_description():
                 'baud_rate':    115200,
                 'wheel_base':   0.165,    # ← MEASURE: centre-to-centre (metres)
                 'publish_rate': 20.0,
+                'publish_odometry': False,
             }]
         ),
 

@@ -2,9 +2,13 @@
 """
 arduino_bridge.py
 ─────────────────
-Optimized ROS2 ↔ Arduino serial bridge.
-Handles buffer clearing to prevent odometry lag and ensures 
-time-sync compatibility with SLAM Toolbox.
+ROS2 ↔ Arduino serial bridge.
+
+MODIFIED for LiDAR‑primary SLAM:
+  - Publishes /odom with HIGH COVARIANCE (x,y,yaw = 0.5,0.5,1.0)
+  - Still broadcasts odom→base_link TF
+  - SLAM Toolbox / AMCL will naturally discount this noisy odometry
+    and rely almost exclusively on laser scan matching.
 """
 
 import rclpy
@@ -22,26 +26,23 @@ class ArduinoBridge(Node):
         # ── Parameters ──────────────────────────────────────
         self.declare_parameter('serial_port',   '/dev/arduino_mega')
         self.declare_parameter('baud_rate',     115200)
-        self.declare_parameter('wheel_base',    0.165)   # Physical distance between wheels
-        self.declare_parameter('publish_rate',  20.0)    # Rate in Hz
+        self.declare_parameter('wheel_base',    0.165)
+        self.declare_parameter('publish_rate',  20.0)
 
         port = self.get_parameter('serial_port').value
         baud = self.get_parameter('baud_rate').value
         self.wheel_base = self.get_parameter('wheel_base').value
+        rate = self.get_parameter('publish_rate').value
 
         # ── Serial Setup ────────────────────────────────────
         try:
             self.ser = serial.Serial(port, baud, timeout=0.05)
-            
-            # --- THE HANDSHAKE FIX ---
             import time
-            self.ser.setDTR(False) # Drop DTR to reset Arduino
+            self.ser.setDTR(False)
             time.sleep(1)
             self.ser.reset_input_buffer()
-            self.ser.setDTR(True)  # Bring DTR back up
-            time.sleep(2)          # Wait 2 seconds for Arduino to finish booting
-            # -------------------------
-            
+            self.ser.setDTR(True)
+            time.sleep(2)
             self.get_logger().info(f'Connected to Arduino on {port} @ {baud}')
         except serial.SerialException as e:
             self.get_logger().fatal(f'Could not open serial port: {e}')
@@ -52,22 +53,14 @@ class ArduinoBridge(Node):
         self.tf_broadcaster = TransformBroadcaster(self)
         self.cmd_sub = self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_cb, 10)
 
-        # Timer matches the requested publish rate
-        rate = self.get_parameter('publish_rate').value
         self.create_timer(1.0 / rate, self.update)
-
-        self.get_logger().info('Bridge Ready: /odom active, /cmd_vel listening.')
+        self.get_logger().info('Bridge ready – /odom (high covariance), /cmd_vel.')
 
     def cmd_vel_cb(self, msg: Twist):
-        """ Translates ROS Twist to Arduino CMD format. """
         v = msg.linear.x
         w = msg.angular.z
-
-        # Differential drive inverse kinematics
         vL = v - (w * self.wheel_base / 2.0)
         vR = v + (w * self.wheel_base / 2.0)
-
-        # Send command to Arduino
         cmd = f'CMD,{vL:.4f},{vR:.4f}\n'
         try:
             self.ser.write(cmd.encode('utf-8'))
@@ -75,26 +68,20 @@ class ArduinoBridge(Node):
             self.get_logger().error(f'Serial write error: {e}')
 
     def update(self):
-        """ Reads the most recent ODO packet from serial buffer. """
         try:
             if self.ser.in_waiting == 0:
                 return
 
-            # Read all bytes currently in the buffer to prevent lag
             raw_data = self.ser.read(self.ser.in_waiting).decode('utf-8', errors='replace')
             lines = raw_data.split('\r\n')
-
-            # Find the latest complete line starting with "ODO,"
             target_line = None
             for line in reversed(lines):
                 if line.startswith('ODO,'):
                     target_line = line
                     break
-
             if not target_line:
                 return
 
-            # Format: ODO,x,y,theta_deg,vL,vR,encL,encR
             parts = target_line.split(',')
             if len(parts) < 6:
                 return
@@ -111,19 +98,16 @@ class ArduinoBridge(Node):
             self.get_logger().debug(f'Read error: {e}')
 
     def publish_data(self, x, y, theta_deg, vL, vR):
-        """ Computes kinematics and publishes Odom topic + TF. """
         theta = math.radians(theta_deg)
         now = self.get_clock().now().to_msg()
-        
-        # Calculate velocities for the odom message
+
         v_body = (vL + vR) / 2.0
         w_body = (vR - vL) / self.wheel_base
 
-        # Quaternion from yaw
         qz = math.sin(theta / 2.0)
         qw = math.cos(theta / 2.0)
 
-        # 1. Publish Transform: odom -> base_link
+        # 1. Publish Transform (still needed for SLAM)
         t = TransformStamped()
         t.header.stamp = now
         t.header.frame_id = 'odom'
@@ -134,7 +118,7 @@ class ArduinoBridge(Node):
         t.transform.rotation.w = qw
         self.tf_broadcaster.sendTransform(t)
 
-        # 2. Publish Odometry Message
+        # 2. Publish Odometry with HIGH COVARIANCE (LiDAR will dominate)
         odom = Odometry()
         odom.header.stamp = now
         odom.header.frame_id = 'odom'
@@ -143,8 +127,18 @@ class ArduinoBridge(Node):
         odom.pose.pose.position.y = y
         odom.pose.pose.orientation.z = qz
         odom.pose.pose.orientation.w = qw
+
+        # ── HIGH COVARIANCE VALUES ──────────────────────────
+        # Position uncertainty: 0.5 m² (std dev ~0.7 m)
+        odom.pose.covariance[0]  = 0.5   # x
+        odom.pose.covariance[7]  = 0.5   # y
+        odom.pose.covariance[35] = 1.0   # yaw (rad²) – very unreliable
+
         odom.twist.twist.linear.x = v_body
         odom.twist.twist.angular.z = w_body
+        odom.twist.covariance[0]  = 0.1
+        odom.twist.covariance[35] = 0.5
+
         self.odom_pub.publish(odom)
 
 def main(args=None):
