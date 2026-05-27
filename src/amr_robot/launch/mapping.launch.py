@@ -25,7 +25,7 @@ def generate_launch_description():
             package='topic_tools',
             executable='throttle',
             name='scan_throttle',
-            arguments=['messages', '/scan', '2.0', '/scan_throttled'],
+            arguments=['messages', '/scan', '1.0', '/scan_throttled','--rate'],
             output='screen'
         ),
 
