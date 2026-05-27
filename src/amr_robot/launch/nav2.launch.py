@@ -1,22 +1,19 @@
 import os
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
-    # 1. Paths
     amr_pkg = get_package_share_directory('amr_robot')
     nav2_bringup_pkg = get_package_share_directory('nav2_bringup')
-    
     nav2_params = os.path.join(amr_pkg, 'config', 'nav2_params.yaml')
 
-    # 2. Arguments
     map_arg = DeclareLaunchArgument(
         'map',
-        default_value=os.path.join(amr_pkg, 'maps', 'my_first_map.yaml'),
+        default_value=os.path.join(amr_pkg, 'maps', 'my_map.yaml'),
         description='Full path to the saved map yaml file'
     )
     map_file = LaunchConfiguration('map')
@@ -24,7 +21,7 @@ def generate_launch_description():
     return LaunchDescription([
         map_arg,
 
-        # ── 1. LD19 LiDAR ────────────────────────────────────
+        # LiDAR
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
                 get_package_share_directory('ldlidar_stl_ros2'),
@@ -32,7 +29,29 @@ def generate_launch_description():
             ])
         ),
 
-        # ── 2. Arduino Bridge ─────────────────────────────────
+        # Throttle scans to 10 Hz
+        Node(
+            package='topic_tools',
+            executable='throttle',
+            name='scan_throttle',
+            arguments=['messages', '/scan', '10.0', '/scan_throttled'],
+            output='screen'
+        ),
+
+        # Static TF (only one)
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='base_to_laser',
+            arguments=[
+                '--x', '0', '--y', '0', '--z', '1.1',
+                '--yaw', '0', '--pitch', '0', '--roll', '0',
+                '--frame-id', 'base_link',
+                '--child-frame-id', 'base_laser'
+            ]
+        ),
+
+        # Arduino Bridge
         Node(
             package='amr_robot',
             executable='arduino_bridge',
@@ -46,55 +65,56 @@ def generate_launch_description():
             }]
         ),
 
-        # ── 3. Map Server ─────────────────────────────────────
-        Node(
-            package='nav2_map_server',
-            executable='map_server',
-            name='map_server',
-            output='screen',
-            parameters=[{'use_sim_time': False, 'yaml_filename': map_file}]
-        ),
+        # Map Server (delayed)
+        TimerAction(period=3.0, actions=[
+            Node(
+                package='nav2_map_server',
+                executable='map_server',
+                name='map_server',
+                output='screen',
+                parameters=[{'use_sim_time': False, 'yaml_filename': map_file}]
+            ),
+        ]),
 
-        # ── 4. AMCL ───────────────────────────────────────────
-        Node(
-            package='nav2_amcl',
-            executable='amcl',
-            name='amcl',
-            output='screen',
-            parameters=[nav2_params]
-        ),
+        # AMCL (delayed, uses throttled scan)
+        TimerAction(period=4.0, actions=[
+            Node(
+                package='nav2_amcl',
+                executable='amcl',
+                name='amcl',
+                output='screen',
+                parameters=[nav2_params],
+                remappings=[('/scan', '/scan_throttled')]
+            ),
+        ]),
 
-        # ── 5. Navigation (Planner, Controller, Behavior) ─────
-        # Note: We use the single 'navigation_launch.py' but disable its internal manager
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource([nav2_bringup_pkg, '/launch/navigation_launch.py']),
-            launch_arguments={
-                'use_sim_time': 'false',
-                'params_file': nav2_params,
-                'use_lifecycle_mgr': 'false', # We will use our own manager below
-                'map_subscribe_transient_local': 'true'
-            }.items()
-        ),
+        # Nav2 stack (delayed)
+        TimerAction(period=5.0, actions=[
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource([nav2_bringup_pkg, '/launch/navigation_launch.py']),
+                launch_arguments={
+                    'use_sim_time': 'false',
+                    'params_file': nav2_params,
+                    'use_lifecycle_mgr': 'false',
+                    'map_subscribe_transient_local': 'true'
+                }.items()
+            ),
 
-        # ── 6. SINGLE Lifecycle Manager ───────────────────────
-        # This is the "Brain" that starts the nodes in the CORRECT order
-        Node(
-            package='nav2_lifecycle_manager',
-            executable='lifecycle_manager',
-            name='lifecycle_manager',
-            output='screen',
-            parameters=[{
-                'use_sim_time': False,
-                'autostart': True,
-                'node_names': [
-                    'map_server', 
-                    'amcl', 
-                    'controller_server', 
-                    'planner_server', 
-                    'behavior_server', # FIXED: was recoveries_server
-                    'bt_navigator', 
-                    'waypoint_follower'
-                ]
-            }]
-        ),
+            # Lifecycle Manager
+            Node(
+                package='nav2_lifecycle_manager',
+                executable='lifecycle_manager',
+                name='lifecycle_manager',
+                output='screen',
+                parameters=[{
+                    'use_sim_time': False,
+                    'autostart': True,
+                    'node_names': [
+                        'map_server', 'amcl', 'controller_server',
+                        'planner_server', 'behavior_server',
+                        'bt_navigator', 'waypoint_follower'
+                    ]
+                }]
+            ),
+        ]),
     ])

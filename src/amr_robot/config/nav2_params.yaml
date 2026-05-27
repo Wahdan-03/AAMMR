@@ -24,7 +24,7 @@ amcl:
     laser_likelihood_max_dist: 2.0
     laser_max_range: 5.0           # LD19 max range
     laser_min_range: 0.1
-    laser_model_type: l"ikelihood_field"
+    laser_model_type: "likelihood_field"   # <-- fixed typo
     max_beams: 60
     max_particles: 2000
     min_particles: 500
@@ -36,13 +36,13 @@ amcl:
     resample_interval: 1
     robot_model_type: nav2_amcl::DifferentialMotionModel
     save_pose_rate: 0.5
-    scan_topic: scan
-    set_initial_pose: false        # set to true to skip 2D Pose Estimate in RViz
+    scan_topic: /scan_throttled      # <-- use throttled topic
+    set_initial_pose: false
     sigma_hit: 0.2
     tf_broadcast: true
     transform_tolerance: 1.0
-    update_min_a: 0.5              # rotate this much before updating
-    update_min_d: 0.5             # move this much before updating
+    update_min_a: 0.5
+    update_min_d: 0.5
     z_hit: 0.95
     z_max: 0.02
     z_rand: 0.01
@@ -83,12 +83,12 @@ controller_server:
     general_goal_checker:
       stateful: true
       plugin: nav2_controller::SimpleGoalChecker
-      xy_goal_tolerance: 0.1        # stop within 10cm of goal
-      yaw_goal_tolerance: 0.1       # stop within ~6° of goal heading
+      xy_goal_tolerance: 0.1
+      yaw_goal_tolerance: 0.1
 
     FollowPath:
       plugin: nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController
-      desired_linear_vel: 0.2       # max forward speed (m/s) — safe for indoor AMR
+      desired_linear_vel: 0.2
       lookahead_dist: 0.4
       min_lookahead_dist: 0.3
       max_lookahead_dist: 0.9
@@ -123,18 +123,18 @@ planner_server:
       use_astar: false
       allow_unknown: true
 
-behavior_server: # Changed from recoveries_server
+behavior_server:
   ros__parameters:
     costmap_topic: local_costmap/costmap_raw
     footprint_topic: local_costmap/published_footprint
     cycle_frequency: 10.0
-    behavior_plugins: ["spin", "backup", "wait"] # Changed from recovery_plugins
+    behavior_plugins: ["spin", "backup", "wait"]
     spin:
-      plugin: "nav2_behaviors/Spin" # Changed from nav2_recoveries/Spin
+      plugin: "nav2_behaviors/Spin"
     backup:
-      plugin: "nav2_behaviors/BackUp" # Changed from nav2_recoveries/BackUp
+      plugin: "nav2_behaviors/BackUp"
     wait:
-      plugin: "nav2_behaviors/Wait" # Changed from nav2_recoveries/Wait
+      plugin: "nav2_behaviors/Wait"
     global_frame: odom
     robot_base_frame: base_link
     transform_timeout: 0.1
@@ -156,7 +156,7 @@ local_costmap:
       width: 3
       height: 3
       resolution: 0.05
-      robot_radius: 0.15            # ← SET to your robot's actual radius (metres)
+      robot_radius: 0.15
       plugins: [voxel_layer, inflation_layer]
       voxel_layer:
         plugin: nav2_costmap_2d::VoxelLayer
@@ -169,7 +169,7 @@ local_costmap:
         mark_threshold: 0
         observation_sources: scan
         scan:
-          topic: /scan
+          topic: /scan_throttled        # <-- use throttled topic
           max_obstacle_height: 0.44
           clearing: true
           marking: true
@@ -192,7 +192,7 @@ global_costmap:
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: false
-      robot_radius: 0.15            # ← match local_costmap robot_radius
+      robot_radius: 0.15
       resolution: 0.05
       track_unknown_space: true
       plugins: [static_layer, obstacle_layer, inflation_layer]
@@ -204,7 +204,7 @@ global_costmap:
         enabled: true
         observation_sources: scan
         scan:
-          topic: /scan
+          topic: /scan_throttled        # <-- use throttled topic
           max_obstacle_height: 1.2
           clearing: true
           marking: true
