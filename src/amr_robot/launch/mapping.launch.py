@@ -13,15 +13,14 @@ def generate_launch_description():
 
     return LaunchDescription([
 
-        # 1. LD19 LiDAR (includes its own static TF)
+        # 1. LiDAR using its own working launch file (do not modify)
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
-                get_package_share_directory('ldlidar_stl_ros2'),
-                '/launch/ld19.launch.py'
+                '/home/wahdan/ldlidar_ros2_ws/src/ldlidar_stl_ros2/launch/ld19.launch.py'
             ])
         ),
 
-        # 2. Throttle scans to 10 Hz
+        # 2. Throttle scans to 2 Hz
         Node(
             package='topic_tools',
             executable='throttle',
@@ -30,7 +29,7 @@ def generate_launch_description():
             output='screen'
         ),
 
-        # 3. Arduino Bridge (publishes /odom with high covariance)
+        # 3. Arduino Bridge
         Node(
             package='amr_robot',
             executable='arduino_bridge',
@@ -44,7 +43,7 @@ def generate_launch_description():
             }]
         ),
 
-        # 4. SLAM Toolbox – uses throttled scan
+        # 4. SLAM Toolbox (uses throttled scan)
         TimerAction(period=4.0, actions=[
             Node(
                 package='slam_toolbox',
@@ -52,7 +51,7 @@ def generate_launch_description():
                 name='slam_toolbox',
                 output='screen',
                 parameters=[slam_config, {'use_sim_time': False}],
-                remappings=[('/scan', '/scan_throttled')]   # ← critical
+                remappings=[('/scan', '/scan_throttled')]
             )
         ]),
 

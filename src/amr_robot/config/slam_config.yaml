@@ -14,11 +14,13 @@ slam_toolbox:
     use_scan_barycenter: true
 
     # Performance
-    resolution: 0.10        # 10 cm – faster, good for LD19
-    map_update_interval: 2.0
+    resolution: 0.15        # 10 cm – faster, good for LD19
+    map_update_interval: 3.0
     max_laser_range: 5.0
     throttle_scans: 1       # already throttled externally
-
+    do_loop_closing: false
+    use_scan_barycenter: false
+    
     # Timing (avoid queue overflow)
     transform_timeout: 1.0
     minimum_time_interval_ms: 50
