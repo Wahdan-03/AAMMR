@@ -319,6 +319,14 @@ void parseSerial() {
 
 void setup() {
   Serial.begin(115200);
+
+  // --- THE HANDSHAKE FIX ---
+  // Wait 2 seconds for the Pi's Python serial port to open and stabilize
+  delay(2000);
+  // Flush any garbage data out of the hardware buffer
+  Serial.println("\n\n");
+  Serial.flush();
+  // -------------------------
   
   // FIXED: Reserve 64 bytes of memory for the string buffer to stop heap fragmentation
   serialBuf.reserve(64); 
