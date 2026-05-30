@@ -1,6 +1,6 @@
 import os
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, TimerAction, ExecuteProcess
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -11,17 +11,23 @@ def generate_launch_description():
     nav2_bringup_pkg = get_package_share_directory('nav2_bringup')
     nav2_params = os.path.join(amr_pkg, 'config', 'nav2_params.yaml')
 
+    # Map file argument (default to your saved map)
     map_arg = DeclareLaunchArgument(
         'map',
-        default_value=os.path.join(amr_pkg, 'maps', 'my_map.yaml'),
+        default_value=os.path.join(amr_pkg, 'maps', 'Synaptic_Cosmetics_Office1.yaml'),
         description='Full path to the saved map yaml file'
     )
     map_file = LaunchConfiguration('map')
 
+    # RViz configuration file (without RobotModel)
+    rviz_config = os.path.join(amr_pkg, 'config', 'nav2.rviz')
+
     return LaunchDescription([
         map_arg,
 
-        # LiDAR
+        # ──────────────────────────────────────────────────────
+        # 1. LiDAR (using its own launch file)
+        # ──────────────────────────────────────────────────────
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
                 get_package_share_directory('ldlidar_stl_ros2'),
@@ -29,7 +35,9 @@ def generate_launch_description():
             ])
         ),
 
-        # Throttle scans to 10 Hz
+        # ──────────────────────────────────────────────────────
+        # 2. Throttle scans to 10 Hz (reduce load on AMCL / costmaps)
+        # ──────────────────────────────────────────────────────
         Node(
             package='topic_tools',
             executable='throttle',
@@ -38,7 +46,9 @@ def generate_launch_description():
             output='screen'
         ),
 
-        # Static TF (only one)
+        # ──────────────────────────────────────────────────────
+        # 3. Static transform: base_link → base_laser (height 1.1 m)
+        # ──────────────────────────────────────────────────────
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
@@ -51,7 +61,9 @@ def generate_launch_description():
             ]
         ),
 
-        # Arduino Bridge
+        # ──────────────────────────────────────────────────────
+        # 4. Arduino Bridge (publishes /odom + TF every tick)
+        # ──────────────────────────────────────────────────────
         Node(
             package='amr_robot',
             executable='arduino_bridge',
@@ -65,7 +77,9 @@ def generate_launch_description():
             }]
         ),
 
-        # Map Server (delayed)
+        # ──────────────────────────────────────────────────────
+        # 5. Map Server (delayed 3 seconds)
+        # ──────────────────────────────────────────────────────
         TimerAction(period=3.0, actions=[
             Node(
                 package='nav2_map_server',
@@ -76,7 +90,9 @@ def generate_launch_description():
             ),
         ]),
 
-        # AMCL (delayed, uses throttled scan)
+        # ──────────────────────────────────────────────────────
+        # 6. AMCL (delayed 4 seconds, uses throttled scan)
+        # ──────────────────────────────────────────────────────
         TimerAction(period=4.0, actions=[
             Node(
                 package='nav2_amcl',
@@ -88,33 +104,51 @@ def generate_launch_description():
             ),
         ]),
 
-        # Nav2 stack (delayed)
+        # ──────────────────────────────────────────────────────
+        # 7. Nav2 stack (planner, controller, bt, etc.)
+        #    This includes its own lifecycle manager.
+        # ──────────────────────────────────────────────────────
         TimerAction(period=5.0, actions=[
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([nav2_bringup_pkg, '/launch/navigation_launch.py']),
                 launch_arguments={
                     'use_sim_time': 'false',
                     'params_file': nav2_params,
-                    'use_lifecycle_mgr': 'false',
+                    'use_lifecycle_mgr': 'true',       # let Nav2 manage its own nodes
                     'map_subscribe_transient_local': 'true'
                 }.items()
             ),
+        ]),
 
-            # Lifecycle Manager
+        # ──────────────────────────────────────────────────────
+        # 8. Automatic lifecycle activation for map_server & amcl
+        #    (Wait 8 seconds for the nodes to be fully up)
+        # ──────────────────────────────────────────────────────
+        TimerAction(period=8.0, actions=[
+            ExecuteProcess(
+                cmd=['bash', '-c',
+                     'source /opt/ros/humble/setup.bash && '
+                     'source /home/wahdan/ros2_ws/install/setup.bash && '
+                     'ros2 lifecycle set /map_server configure && '
+                     'ros2 lifecycle set /map_server activate && '
+                     'ros2 lifecycle set /amcl configure && '
+                     'ros2 lifecycle set /amcl activate'
+                ],
+                output='screen'
+            )
+        ]),
+
+        # ──────────────────────────────────────────────────────
+        # 9. RViz2 (delayed, uses config without RobotModel)
+        #    Wait 10 seconds for the map and AMCL to be active.
+        # ──────────────────────────────────────────────────────
+        TimerAction(period=10.0, actions=[
             Node(
-                package='nav2_lifecycle_manager',
-                executable='lifecycle_manager',
-                name='lifecycle_manager',
-                output='screen',
-                parameters=[{
-                    'use_sim_time': False,
-                    'autostart': True,
-                    'node_names': [
-                        'map_server', 'amcl', 'controller_server',
-                        'planner_server', 'behavior_server',
-                        'bt_navigator', 'waypoint_follower'
-                    ]
-                }]
-            ),
+                package='rviz2',
+                executable='rviz2',
+                name='rviz2',
+                arguments=['-d', rviz_config],
+                output='screen'
+            )
         ]),
     ])

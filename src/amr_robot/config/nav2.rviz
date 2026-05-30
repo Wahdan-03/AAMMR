@@ -1,0 +1,37 @@
+panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+visualization_manager:
+  Displays:
+    - Class: rviz_default_plugins/Map
+      Name: Map
+      Topic: /map
+      Alpha: 0.7
+      Color Scheme: map
+      Draw Behind: false
+      Update Topic: /map_updates
+      Enabled: true
+    - Class: rviz_default_plugins/ParticleCloud
+      Name: ParticleCloud
+      Topic: /particlecloud
+      Color: 255; 25; 0
+      Enabled: true
+    # RobotModel is commented out (requires URDF)
+    # - Class: rviz_default_plugins/RobotModel
+    #   Name: RobotModel
+    #   Description Topic: /robot_description
+    #   Enabled: false
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Frame Timeout: 15
+  Global Options:
+    Fixed Frame: map
+    Frame Rate: 30
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 10
+      Focal Point: [0, 0, 0]
