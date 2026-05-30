@@ -80,7 +80,7 @@ bt_navigator:
     # FIX: bt_loop_duration was 10 ms (= 100 Hz target).
     #      Pi 4 was achieving only ~17 Hz → constant WARN flood.
     #      50 ms = 20 Hz, which the Pi 4 comfortably sustains.
-    bt_loop_duration: 50    # was 10
+    bt_loop_duration: 100    # was 10
 
     # FIX: default_server_timeout was 20 s. The log shows the planner
     #      timed out at exactly 20 s because the CPU-loaded Pi couldn't
@@ -101,12 +101,12 @@ controller_server:
 
     # FIX: controller_frequency was 20 Hz. Lowered to 10 Hz to give the Pi 4
     #      CPU headroom. RPP is cheap but 20 Hz adds up alongside the planner.
-    controller_frequency: 10.0    # was 20.0
+    controller_frequency: 5.0    # was 20.0
 
     # Velocity thresholds — min_y stays high (diff-drive has no lateral motion)
-    min_x_velocity_threshold:     0.001
+    min_x_velocity_threshold:     0.5
     min_y_velocity_threshold:     0.5
-    min_theta_velocity_threshold: 0.001
+    min_theta_velocity_threshold: 0.5
 
     failure_tolerance: 0.3
     odom_topic: odom
@@ -143,7 +143,7 @@ controller_server:
       #      instead of 100 Hz, TF frames can be up to ~60 ms stale.
       #      RPP was rejecting every TF lookup and immediately aborting.
       #      0.5 s gives the Pi 4 sufficient headroom.
-      transform_tolerance: 0.5    # was 0.1
+      transform_tolerance: 1.0    # was 0.1
 
       use_velocity_scaled_lookahead_dist:  true
       min_approach_linear_velocity:        0.05
