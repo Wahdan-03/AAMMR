@@ -11,7 +11,8 @@ amcl:
     use_sim_time: false
 
     # Motion model noise — keep high since wheel odometry has high covariance
-    odom_model_type: "diff"
+    # NOTE: odom_model_type is the old pre-Humble name and is ignored in Humble.
+    #       robot_model_type (below) is the correct Humble parameter.
     alpha1: 2.0
     alpha2: 2.0
     alpha3: 2.0
@@ -131,7 +132,14 @@ controller_server:
     FollowPath:
       plugin: nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController
 
-      desired_linear_vel:          2.0
+      # FIX: desired_linear_vel was 2.0 m/s — that is dangerously fast for a
+      #      small indoor AMR and completely unreachable for JGY-370 motors.
+      #      RPP scales DOWN from this value based on curvature/cost; if the
+      #      ceiling is unrealistically high the scaled-down floor (see
+      #      regulated_linear_scaling_min_speed below) is also proportionally
+      #      too low, making the motors stall. Set to a realistic top speed.
+      desired_linear_vel: 0.8    # was 2.0  (m/s — tune to your motor's real max)
+
       lookahead_dist:              0.4
       min_lookahead_dist:          0.3
       max_lookahead_dist:          0.9
@@ -146,7 +154,13 @@ controller_server:
       transform_tolerance: 0.5    # was 0.1
 
       use_velocity_scaled_lookahead_dist:  true
-      min_approach_linear_velocity:        0.5
+
+      # FIX: min_approach_linear_velocity is the speed RPP commands when
+      #      slowing down on final approach to the goal.  0.5 matches the
+      #      lower deadband minimum so the robot keeps moving right up to
+      #      the goal rather than stalling just before it.
+      min_approach_linear_velocity:        0.5    # was 0.5 — already correct, kept
+
       approach_velocity_scaling_dist:      0.6
       use_collision_detection:             true
       max_allowed_time_to_collision_up_to_carrot: 1.0
@@ -155,7 +169,17 @@ controller_server:
       curvature_lookahead_dist:            0.25
       use_cost_regulated_linear_velocity_scaling: false
       regulated_linear_scaling_min_radius: 0.9
-      regulated_linear_scaling_min_speed:  0.25
+
+      # FIX: regulated_linear_scaling_min_speed is the absolute floor RPP will
+      #      scale the velocity down to when following tight curves or navigating
+      #      near obstacles. The old value of 0.25 is BELOW the motor deadband
+      #      (~0.5), so RPP was regularly commanding speeds the motors physically
+      #      cannot respond to. Raised to 0.55 — slightly above the left wheel
+      #      minimum — so Nav2 never issues a nonzero command the hardware ignores.
+      #      The arduino_bridge deadband clamp is the safety net; this prevents
+      #      the nav stack from over-relying on that clamp.
+      regulated_linear_scaling_min_speed:  0.55   # was 0.25
+
       use_rotate_to_heading:               true
       allow_reversing:                     false
       rotate_to_heading_min_angle:         0.785
@@ -315,3 +339,29 @@ waypoint_follower:
       plugin: nav2_waypoint_follower::WaitAtWaypoint
       enabled: true
       waypoint_pause_duration: 200
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Lifecycle managers — REQUIRED in Humble when passing params_file to
+# localization_launch.py and navigation_launch.py.
+# Without these sections the managers start with an empty node_names list
+# and never activate map_server, amcl, or any navigation node.
+# ──────────────────────────────────────────────────────────────────────────────
+
+lifecycle_manager_localization:
+  ros__parameters:
+    use_sim_time: false
+    autostart:    true
+    node_names:
+      - map_server
+      - amcl
+
+lifecycle_manager_navigation:
+  ros__parameters:
+    use_sim_time: false
+    autostart:    true
+    node_names:
+      - controller_server
+      - planner_server
+      - behavior_server
+      - bt_navigator
+      - waypoint_follower

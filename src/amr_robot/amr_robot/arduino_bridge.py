@@ -8,6 +8,17 @@ LiDAR-primary SLAM mode:
   - Publishes /odom with HIGH COVARIANCE so SLAM Toolbox ignores wheel odometry
   - Broadcasts odom→base_link TF on EVERY timer tick (not just when serial data arrives)
     to prevent TF gaps that cause the SLAM message filter queue to overflow.
+
+Deadband compensation:
+  - Motors require a minimum PWM/speed before they actually move (deadband).
+  - Nav2's RPP controller can command very small velocities (especially on
+    approach or during fine heading corrections) that fall below this deadband,
+    causing the robot to stutter or not move at all.
+  - For each wheel independently: if the commanded speed is nonzero but below
+    the configured minimum, it is lifted to that minimum while preserving sign.
+  - Left and right minimums are separate parameters because your left wheel
+    has a lower deadband than the right.
+  - Zero commands are always passed through as zero (clean stop).
 """
 
 import rclpy
@@ -30,10 +41,20 @@ class ArduinoBridge(Node):
         self.declare_parameter('wheel_base',   0.165)
         self.declare_parameter('publish_rate', 20.0)
 
-        port          = self.get_parameter('serial_port').value
-        baud          = self.get_parameter('baud_rate').value
+        # Deadband parameters — minimum wheel speed (m/s) that actually
+        # causes motor movement. Anything nonzero below this is lifted to
+        # this value. Tune these to the smallest value that reliably moves
+        # each motor during manual testing (you said ~0.5–0.8).
+        # Left and right are separate because your motors differ.
+        self.declare_parameter('min_wheel_speed_left',  0.55)
+        self.declare_parameter('min_wheel_speed_right', 0.65)
+
+        port            = self.get_parameter('serial_port').value
+        baud            = self.get_parameter('baud_rate').value
         self.wheel_base = self.get_parameter('wheel_base').value
-        rate          = self.get_parameter('publish_rate').value
+        rate            = self.get_parameter('publish_rate').value
+        self.min_vL     = self.get_parameter('min_wheel_speed_left').value
+        self.min_vR     = self.get_parameter('min_wheel_speed_right').value
 
         # ── Last known pose (initialised at origin) ──────────
         # Published every tick so the TF tree never has gaps.
@@ -57,6 +78,10 @@ class ArduinoBridge(Node):
             self.get_logger().fatal(f'Could not open serial port: {e}')
             raise SystemExit(1)
 
+        self.get_logger().info(
+            f'Deadband: left={self.min_vL:.3f} m/s  right={self.min_vR:.3f} m/s'
+        )
+
         # ── ROS2 Publishers / Subscribers ────────────────────
         self.odom_pub       = self.create_publisher(Odometry, '/odom', 10)
         self.tf_broadcaster = TransformBroadcaster(self)
@@ -67,12 +92,36 @@ class ArduinoBridge(Node):
         self.create_timer(1.0 / rate, self.update)
         self.get_logger().info('Bridge ready – publishing /odom (high covariance) and TF every tick.')
 
+    # ── Deadband helper ───────────────────────────────────────
+    @staticmethod
+    def _apply_deadband(speed: float, minimum: float) -> float:
+        """
+        If |speed| is nonzero but below 'minimum', lift it to 'minimum'
+        while preserving the sign.  Zero is always returned as zero so
+        the robot can still make a clean stop.
+        """
+        if speed == 0.0:
+            return 0.0
+        if abs(speed) < minimum:
+            return math.copysign(minimum, speed)
+        return speed
+
     # ── Command velocity → serial ─────────────────────────────
     def cmd_vel_cb(self, msg: Twist):
-        v  = msg.linear.x
-        w  = msg.angular.z
-        vL = v - (w * self.wheel_base / 2.0)
-        vR = v + (w * self.wheel_base / 2.0)
+        v = msg.linear.x
+        w = msg.angular.z
+
+        # Inverse differential-drive kinematics
+        vL_raw = v - (w * self.wheel_base / 2.0)
+        vR_raw = v + (w * self.wheel_base / 2.0)
+
+        # Apply per-wheel deadband compensation.
+        # This lifts any sub-threshold nonzero command up to the minimum
+        # speed that actually moves each motor, fixing the slow-stutter
+        # behaviour Nav2 produces when it commands small corrections.
+        vL = self._apply_deadband(vL_raw, self.min_vL)
+        vR = self._apply_deadband(vR_raw, self.min_vR)
+
         cmd = f'CMD,{vL:.4f},{vR:.4f}\n'
         try:
             self.ser.write(cmd.encode('utf-8'))
