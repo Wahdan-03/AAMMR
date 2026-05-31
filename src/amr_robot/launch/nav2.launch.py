@@ -23,7 +23,7 @@ def generate_launch_description():
     # ── Launch arguments ────────────────────────────────────────────────────
     map_arg = DeclareLaunchArgument(
         'map',
-        default_value=os.path.join(amr_pkg, 'maps', 'my_map.yaml'),
+        default_value=os.path.join(amr_pkg, 'maps', 'Synaptic_Cosmetics_Office1.yaml'),
         description='Full path to the saved map yaml file'
     )
     map_file = LaunchConfiguration('map')
