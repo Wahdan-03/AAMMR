@@ -13,11 +13,13 @@ amcl:
     # Motion model noise — keep high since wheel odometry has high covariance
     # NOTE: odom_model_type is the old pre-Humble name and is ignored in Humble.
     #       robot_model_type (below) is the correct Humble parameter.
-    alpha1: 2.0
-    alpha2: 2.0
-    alpha3: 2.0
-    alpha4: 2.0
-    alpha5: 2.0
+    # Navigation-tuned alpha values. Lower than SLAM defaults so particles
+    # stay tight enough to recover after in-place rotation.
+    alpha1: 0.5
+    alpha2: 0.5
+    alpha3: 0.2
+    alpha4: 0.2
+    alpha5: 0.1
 
     # Frames
     base_frame_id:   base_link
@@ -29,7 +31,7 @@ amcl:
     laser_max_range:          5.0
     laser_min_range:          0.1
     laser_likelihood_max_dist: 2.0
-    max_beams:                60
+    max_beams:                120    # was 60 — more beams = faster re-localisation during motion
     sigma_hit:                0.2
     z_hit:                    0.95
     z_max:                    0.02
@@ -47,7 +49,7 @@ amcl:
     update_min_d: 0.15    # was 0.5
     update_min_a: 0.2     # was 0.5
 
-    resample_interval: 1
+    resample_interval: 2    # was 1 — prevents particle deprivation on Pi 4
     pf_err:            0.05
     pf_z:              0.99
 
@@ -61,13 +63,16 @@ amcl:
     transform_tolerance: 1.0
     save_pose_rate:     0.5
 
-    recovery_alpha_fast: 0.0
-    recovery_alpha_slow: 0.0
+    # FIX: both were 0.0, disabling KLD recovery entirely.
+    # When AMCL loses the pose it had no way to inject new hypotheses.
+    # Small values allow rescue without destabilising good localization.
+    recovery_alpha_fast: 0.1    # was 0.0
+    recovery_alpha_slow: 0.001  # was 0.0
 
     set_initial_pose: false
 
     robot_model_type: nav2_amcl::DifferentialMotionModel
-    scan_topic: /scan_throttled
+    scan_topic: /scan    # was /scan_throttled — AMCL needs full scan rate to track rotation
 
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -144,7 +149,7 @@ controller_server:
       min_lookahead_dist:          0.3
       max_lookahead_dist:          0.9
       lookahead_time:              1.5
-      rotate_to_heading_angular_vel: 0.8
+      rotate_to_heading_angular_vel: 0.4    # was 0.8 — slower spin = more AMCL scan updates per degree
 
       # FIX: transform_tolerance was 0.1 s — the CRITICAL cause of
       #      "Failed to make progress". With the BT running at ~17 Hz
@@ -180,9 +185,12 @@ controller_server:
       #      the nav stack from over-relying on that clamp.
       regulated_linear_scaling_min_speed:  0.55   # was 0.25
 
-      use_rotate_to_heading:               true
+      # FIX: was true — caused in-place spin on every new goal.
+      # With unreliable odometry, AMCL loses the pose during the spin.
+      # RPP now curves into the path heading instead.
+      use_rotate_to_heading:               false
       allow_reversing:                     false
-      rotate_to_heading_min_angle:         0.785
+      rotate_to_heading_min_angle:         3.14   # effectively disabled (use_rotate_to_heading is false)
       max_angular_accel:                   3.2
       max_robot_pose_search_dist:          10.0
 
