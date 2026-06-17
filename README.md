@@ -122,12 +122,6 @@ The bridge node (`arduino_bridge.py`) also applies per-wheel deadband compensati
 
 Emitter placement strategy, dwell-time logic, safety shutoff behavior, post-cycle ventilation, and shadow-zone handling for the planned UV-C disinfection layer are being derived from a clinical study of the Surfacide® Helios 254 nm UV-C multiemitter system (Fiscal-Baxin et al., *Pathogens*, 2026), mapping its operational protocols onto Nav2 autonomy states.
 
-## Roadmap
-
-- Integrate UV-C disinfection logic into the Nav2 state machine (dwell waypoints, post-cycle ventilation state, safety shutoff state)
-- Adaptive dwell-time logic driven by occupancy map data to compensate for shadow zones in geometrically complex rooms
-- LiDAR/motion-sensor hardware interrupt (via the Arduino Mega) for safety shutoff during UV-C emission
-- Multi-emitter placement strategy informed by the clinical literature
 
 ## License
 
