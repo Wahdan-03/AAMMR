@@ -2,7 +2,6 @@
 
 AAMMR is an autonomous mobile robot (AMR) platform built on **ROS 2 Humble**, combining LiDAR-based SLAM, Nav2 autonomous navigation, and a custom Arduino-based differential-drive motor controller. The long-term goal of the project is to extend this navigation stack with **UV-C disinfection logic**, enabling autonomous surface and airborne pathogen reduction in hospital and clinical environments.
 
-> ⚠️ **Project status:** active development. The current codebase implements mapping, localization, and navigation. UV-C disinfection control (dwell-time logic, safety shutoff, post-cycle ventilation states) is on the roadmap and not yet integrated into the autonomy stack.
 
 ## Overview
 
